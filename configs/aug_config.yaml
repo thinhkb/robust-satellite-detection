@@ -1,0 +1,55 @@
+# configs/aug_config.yaml
+# Augmentation parameters for each training setup
+# These are passed directly to YOLOv8 train() arguments
+
+# ─── Baseline augmentation (YOLO defaults) ───────────────────────────────
+baseline:
+  hsv_h:       0.015   # hue shift
+  hsv_s:       0.700   # saturation
+  hsv_v:       0.400   # value/brightness
+  degrees:     0.0     # rotation
+  translate:   0.1
+  scale:       0.5
+  shear:       0.0
+  perspective: 0.0
+  flipud:      0.0
+  fliplr:      0.5
+  mosaic:      1.0
+  mixup:       0.0
+  copy_paste:  0.0
+
+# ─── DG-Aug: Domain-Generalized Augmentation (proposed) ─────────────────
+# Stronger aug to reduce dependence on source domain style
+dg_aug:
+  # Aggressive colour jitter → simulate tropical / arid / temperate palettes
+  hsv_h:       0.03    # wider hue range
+  hsv_s:       0.60
+  hsv_v:       0.50    # stronger brightness variation
+
+  # Geometric diversity → overhead satellite view is rotation-invariant
+  degrees:     10.0    # ±10° rotation
+  translate:   0.10
+  scale:       0.50
+  shear:       2.0
+  perspective: 0.0001
+
+  # Flips (all directions valid for overhead imagery)
+  flipud:      0.10    # up-down valid in satellite view
+  fliplr:      0.50
+
+  # Strong mixing for domain confusion
+  mosaic:      1.0
+  mixup:       0.10    # light MixUp
+  copy_paste:  0.05    # copy-paste for small objects
+
+# ─── Additional albumentations transforms (applied on top) ───────────────
+# These are configured inside train_dg_aug.py
+albumentations_extras:
+  - RandomBrightnessContrast: {p: 0.5, brightness_limit: 0.3, contrast_limit: 0.3}
+  - HueSaturationValue:       {p: 0.3, hue_shift: 20, sat_shift: 50, val_shift: 30}
+  - GaussNoise:               {p: 0.3, var_limit: [10, 50]}
+  - GaussianBlur:             {p: 0.4, blur_limit: [3, 7]}
+  - RandomFog:                {p: 0.2, fog_coef: [0.05, 0.2]}
+  - ImageCompression:         {p: 0.2, quality_lower: 60}
+  - CoarseDropout:            {p: 0.3, max_holes: 8, max_height: 32, max_width: 32}
+  - CLAHE:                    {p: 0.3, clip_limit: 4.0}
