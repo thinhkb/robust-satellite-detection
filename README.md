@@ -95,7 +95,7 @@ pip install tqdm pyyaml
 # Register at: http://xviewdataset.org/
 # Download: train_images.tgz  +  xView_train.geojson
 # Unpack to:
-mkdir -p /data/xview
+mkdir -p /data_raw/xview
 # → /data_raw/xview/train_images/   (*.tif files)
 # → /data_raw/xview/xView_train.geojson
 ```
