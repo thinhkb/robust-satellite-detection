@@ -34,9 +34,10 @@ ENV/
 # Project Specific
 data/
 data_raw/
-results/
 runs/
-{data/
+configs/*.yaml
+!configs/classes.yaml
+!configs/aug_config.yaml
 *.pt
 *.onnx
 *.weights
