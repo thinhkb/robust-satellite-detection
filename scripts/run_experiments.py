@@ -204,6 +204,10 @@ def plot_results(df: pd.DataFrame, out_dir: Path):
         print("[SKIP] matplotlib not installed – skipping plots")
         return
 
+    if df.empty or "Method" not in df.columns:
+        print("[WARN] Skipping plots: Results DataFrame is empty or missing 'Method' column.")
+        return
+
     out_dir.mkdir(parents=True, exist_ok=True)
 
     # ── 1. ID vs OOD mAP50 scatter plot ──────────────────────────────────
@@ -369,7 +373,10 @@ def main():
     print("\n" + "═" * 60)
     print("  Generating Plots")
     print("═" * 60)
-    plot_results(df, Path("results/plots"))
+    if not df.empty and "Method" in df.columns:
+        plot_results(df, Path("results/plots"))
+    else:
+        print("[WARN] No results gathered or invalid data. Skipping plots.")
 
     print("\n✓ All experiments complete!")
     print(f"  Tables  : results/tables/")
