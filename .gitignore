@@ -34,7 +34,6 @@ ENV/
 # Project Specific
 data/
 data_raw/
-runs/
 configs/*.yaml
 !configs/classes.yaml
 !configs/aug_config.yaml
