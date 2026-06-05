@@ -19,12 +19,20 @@ Usage:
 """
 
 import argparse
+import csv
+import re
 import shutil
 import random
+import sys
 from pathlib import Path
-from collections import defaultdict
+from collections import Counter, defaultdict
 
 import yaml
+
+
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    sys.stderr.reconfigure(encoding="utf-8", errors="replace")
 
 ZONES       = ["CZ_A", "CZ_B", "CZ_C"]
 SPLITS      = ["train", "val", "test"]
@@ -73,23 +81,149 @@ def count_instances(lbl_files: list) -> dict:
     return dict(counts)
 
 
-def random_split(files: list, seed: int = 42):
-    """Random 60/20/20 split. Returns (train, val, test)."""
+TILE_STEM_RE = re.compile(r"^(?P<source>.+)_(?P<x>-?\d+)_(?P<y>-?\d+)$")
+
+
+def source_image_id(path: str | Path) -> str:
+    """Return the original image id from a <source>_<tile_x>_<tile_y> filename."""
+    stem = Path(path).stem
+    match = TILE_STEM_RE.match(stem)
+    if not match:
+        raise ValueError(
+            f"Cannot derive source image from tile '{Path(path).name}'. "
+            "Expected <source>_<tile_x>_<tile_y>."
+        )
+    return match.group("source")
+
+
+def grouped_split(files: list, seed: int = 42):
+    """Split source-image groups while balancing tile and class counts."""
+    groups = defaultdict(list)
+    for path in files:
+        groups[source_image_id(path)].append(path)
+
+    if len(groups) < 3:
+        raise ValueError(
+            f"Need at least 3 source images for train/val/test, found {len(groups)}."
+        )
+
     rng = random.Random(seed)
-    files = list(files)
-    rng.shuffle(files)
-    n        = len(files)
-    n_train  = max(1, int(n * SPLIT_RATIO[0]))
-    n_val    = max(1, int(n * SPLIT_RATIO[1]))
-    train    = files[:n_train]
-    val      = files[n_train: n_train + n_val]
-    test     = files[n_train + n_val:]
-    # ensure val and test are non-empty
-    if not test and len(val) > 1:
-        test = [val.pop()]
-    if not val and len(train) > 1:
-        val = [train.pop()]
-    return train, val, test
+    group_items = list(groups.items())
+    rng.shuffle(group_items)
+    group_items.sort(key=lambda item: len(item[1]), reverse=True)
+
+    total_tiles = len(files)
+    targets = {
+        split: total_tiles * ratio
+        for split, ratio in zip(SPLITS, SPLIT_RATIO)
+    }
+    group_classes = {
+        source: sum((_label_histogram(path) for path in paths), Counter())
+        for source, paths in group_items
+    }
+    all_classes = sum(group_classes.values(), Counter())
+    class_targets = {
+        split: {
+            class_id: count * ratio
+            for class_id, count in all_classes.items()
+        }
+        for split, ratio in zip(SPLITS, SPLIT_RATIO)
+    }
+    assigned = {split: [] for split in SPLITS}
+    counts = {split: 0 for split in SPLITS}
+    class_counts = {split: Counter() for split in SPLITS}
+
+    for split, item in zip(SPLITS, group_items[:3]):
+        assigned[split].append(item)
+        counts[split] += len(item[1])
+        class_counts[split].update(group_classes[item[0]])
+
+    for item in group_items[3:]:
+        source, paths = item
+
+        def assignment_cost(candidate: str) -> float:
+            cost = 0.0
+            for split_name in SPLITS:
+                tile_count = counts[split_name]
+                histogram = class_counts[split_name].copy()
+                if split_name == candidate:
+                    tile_count += len(paths)
+                    histogram.update(group_classes[source])
+                cost += ((tile_count - targets[split_name]) / max(targets[split_name], 1)) ** 2
+                for class_id, target in class_targets[split_name].items():
+                    cost += 0.35 * (
+                        (histogram[class_id] - target) / max(target, 1)
+                    ) ** 2
+            return cost
+
+        split = min(SPLITS, key=assignment_cost)
+        assigned[split].append(item)
+        counts[split] += len(item[1])
+        class_counts[split].update(group_classes[source])
+
+    return tuple(
+        [path for _source, paths in assigned[split] for path in paths]
+        for split in SPLITS
+    )
+
+
+def _label_histogram(path: str | Path) -> Counter:
+    """Count object instances in one YOLO label file."""
+    histogram = Counter()
+    label_path = Path(path)
+    if not label_path.exists():
+        return histogram
+    with open(label_path, encoding="utf-8") as handle:
+        for line in handle:
+            fields = line.split()
+            if fields:
+                histogram[int(fields[0])] += 1
+    return histogram
+
+
+def write_split_manifest(zone_dir: Path, split_files: dict[str, list[Path]]) -> Path:
+    """Write tile-to-source assignments and reject source-image leakage."""
+    source_splits = defaultdict(set)
+    rows = []
+    for split, files in split_files.items():
+        for path in files:
+            source = source_image_id(path)
+            source_splits[source].add(split)
+            rows.append((split, source, Path(path).name))
+
+    leaked = {
+        source: sorted(splits)
+        for source, splits in source_splits.items()
+        if len(splits) > 1
+    }
+    if leaked:
+        preview = ", ".join(
+            f"{source}:{'/'.join(splits)}"
+            for source, splits in list(leaked.items())[:5]
+        )
+        raise RuntimeError(f"Source-image leakage detected: {preview}")
+
+    manifest = zone_dir / "split_manifest.csv"
+    with open(manifest, "w", newline="", encoding="utf-8") as handle:
+        writer = csv.writer(handle)
+        writer.writerow(["split", "source_image", "tile"])
+        writer.writerows(sorted(rows))
+
+    stats = {
+        split: {
+            "source_images": len({source_image_id(path) for path in files}),
+            "tiles": len(files),
+            "class_instances": dict(
+                sorted(
+                    sum((_label_histogram(path) for path in files), Counter()).items()
+                )
+            ),
+        }
+        for split, files in split_files.items()
+    }
+    with open(zone_dir / "split_stats.yaml", "w", encoding="utf-8") as handle:
+        yaml.safe_dump(stats, handle, sort_keys=False)
+    return manifest
 
 
 def copy_files(zone_dir: Path, lbl_files: list, split: str) -> int:
@@ -224,8 +358,15 @@ def main(args):
                     for f in (zone_dir / "labels" / split).glob("*"):
                         f.unlink()
 
-            train_f, val_f, test_f = random_split(filtered, seed=args.seed)
-            for split, files in [("train", train_f), ("val", val_f), ("test", test_f)]:
+            train_f, val_f, test_f = grouped_split(filtered, seed=args.seed)
+            split_files = {
+                "train": train_f,
+                "val": val_f,
+                "test": test_f,
+            }
+            manifest = write_split_manifest(zone_dir, split_files)
+            print(f"    manifest: {manifest}")
+            for split, files in split_files.items():
                 n = copy_files(zone_dir, files, split)
                 print(f"    {split:<8}: {n:>5} tiles copied")
 

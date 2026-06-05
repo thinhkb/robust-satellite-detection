@@ -90,6 +90,7 @@ def train(args):
         name    = run_name,
         device  = args.device,
         seed    = args.seed,
+        patience= args.patience,
     ))
 
     # Baseline augmentation (YOLO defaults, no DG-Aug)
@@ -149,6 +150,7 @@ def main():
     parser.add_argument("--project",   default="runs",
                         help="Base directory for runs (YOLO creates: project/detect/results/)")
     parser.add_argument("--seed",      type=int, default=42)
+    parser.add_argument("--patience",  type=int, default=20)
     parser.add_argument("--timestamp", action="store_true",
                         help="Append timestamp to run_name")
     args = parser.parse_args()

@@ -27,8 +27,10 @@ Usage:
 """
 
 import argparse
+import hashlib
 import json
 import os
+import platform
 import tempfile
 from pathlib import Path
 from collections import defaultdict
@@ -36,9 +38,24 @@ from collections import defaultdict
 import yaml
 import numpy as np
 import pandas as pd
+import torch
+import ultralytics
 from ultralytics import YOLO
 
 ZONES = ["CZ_A", "CZ_B", "CZ_C"]
+
+
+def dataset_manifest_hashes(data_dir: Path) -> dict[str, str | None]:
+    """Hash split manifests so report rows cannot silently mix datasets."""
+    hashes = {}
+    for zone in ZONES:
+        manifest = data_dir / zone / "split_manifest.csv"
+        hashes[zone] = (
+            hashlib.sha256(manifest.read_bytes()).hexdigest()
+            if manifest.exists()
+            else None
+        )
+    return hashes
 
 
 # ─────────────────────── helpers ────────────────────────────────────────────
@@ -94,11 +111,20 @@ def evaluate_on_zone(model: YOLO,
             verbose= False,
             split  = "val",   # evaluates on the 'val' key above (= test set)
         )
+        names = metrics.names
+        class_names = list(names.values()) if isinstance(names, dict) else list(names)
         return {
             "mAP50":     float(metrics.box.map50),
             "mAP50_95":  float(metrics.box.map),
             "Precision": float(metrics.box.mp),
             "Recall":    float(metrics.box.mr),
+            "per_class_mAP50_95": {
+                str(name): float(value)
+                for name, value in zip(
+                    class_names,
+                    metrics.box.maps,
+                )
+            },
             "zone":      zone,
         }
     except Exception as e:
@@ -209,6 +235,16 @@ def main(args):
     # ─── Save JSON result ──────────────────────────────────────────────────
     summary = {
         "run_name"    : args.run_name,
+        "base_run"    : args.base_run or args.run_name,
+        "method"      : args.method,
+        "seed"        : args.seed,
+        "dataset_manifests": dataset_manifest_hashes(data_dir),
+        "environment": {
+            "python": platform.python_version(),
+            "platform": platform.platform(),
+            "torch": torch.__version__,
+            "ultralytics": ultralytics.__version__,
+        },
         "weights"     : args.weights,
         "id_zones"    : id_zones,
         "ood_zones"   : ood_zones,
@@ -233,6 +269,9 @@ def main(args):
     csv_path = out_dir / "all_results.csv"
     row = {
         "run_name"   : args.run_name,
+        "base_run"   : args.base_run or args.run_name,
+        "method"     : args.method,
+        "seed"       : args.seed,
         "id_zones"   : "+".join(id_zones),
         "ood_zones"  : "+".join(ood_zones),
         "mAP50_ID"   : round(map_id_50,    4),
@@ -253,6 +292,10 @@ def main(args):
     if csv_path.exists():
         df_existing = pd.read_csv(csv_path)
         df_combined = pd.concat([df_existing, df_new], ignore_index=True)
+        df_combined = df_combined.drop_duplicates(
+            subset=["run_name"],
+            keep="last",
+        )
     else:
         df_combined = df_new
 
@@ -270,6 +313,9 @@ def main_cli():
     parser.add_argument("--data_dir",  default="data",
                         help="Root data dir with CZ_A / CZ_B / CZ_C")
     parser.add_argument("--run_name",  default="experiment")
+    parser.add_argument("--base_run", default=None)
+    parser.add_argument("--method", default="unknown")
+    parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--id_zone",   default=None,
                         help="Single ID zone (single-source mode)")
     parser.add_argument("--id_zones",  nargs="+", default=None,

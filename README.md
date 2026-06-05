@@ -95,9 +95,9 @@ pip install tqdm pyyaml
 # Register at: http://xviewdataset.org/
 # Download: train_images.tgz  +  xView_train.geojson
 # Unpack to:
-mkdir -p /data_raw/xview
-# → /data_raw/xview/train_images/   (*.tif files)
-# → /data_raw/xview/xView_train.geojson
+mkdir -p data_raw/xview
+# → data_raw/xview/train_images/   (*.tif files)
+# → data_raw/xview/xView_train.geojson
 ```
 
 **Köppen-Geiger Climate Raster** (Beck et al. 2018):
@@ -105,21 +105,25 @@ mkdir -p /data_raw/xview
 # Download from Figshare:
 # https://figshare.com/articles/dataset/6396959
 # File: Beck_KG_V1_present_0p0083.tif
-mkdir -p /data/koppen
-# → /data/koppen/Beck_KG_V1_present_0p0083.tif
+mkdir -p data_raw/koppen
+# → data_raw/koppen/Beck_KG_V1_present_0p0083.tif
 ```
 
 ---
 
 ## Quick Start
 
+> **Official results require leakage-safe splits.** Older versions randomly
+> assigned overlapping tiles to train/val/test. Rebuild all splits before
+> retraining and do not mix legacy metrics with the official report.
+
 ### Step 1: Convert xView to YOLO format
 
 ```bash
 python scripts/convert_to_yolo.py \
-    --xview_img_dir /data/xview/train_images \
-    --geojson       /data/xView_train.geojson \
-    --koppen_raster /data/koppen/Beck_KG_V1_present_0p0083.tif \
+    --xview_img_dir data_raw/xview/train_images \
+    --geojson       data_raw/xview/xView_train.geojson \
+    --koppen_raster data_raw/koppen/Beck_KG_V1_present_0p0083.tif \
     --out_dir       data \
     --tile_size     512 \
     --overlap       0.2
@@ -131,7 +135,10 @@ python scripts/convert_to_yolo.py \
 python scripts/split_domain.py \
     --data_dir data \
     --cfg_dir  configs \
-    --min_samples 30
+    --min_samples 30 \
+    --force
+
+python scripts/check_data.py --data_dir data --cfg_dir configs
 ```
 
 ### Step 3: Run all experiments (recommended)
@@ -151,6 +158,27 @@ python scripts/run_experiments.py \
     --epochs 50 --imgsz 512 --batch 8 \
     --device cpu
 ```
+
+### Official multi-seed report
+
+```bash
+python scripts/run_experiments.py \
+    --exp 1 2 3 4 \
+    --seeds 42 43 44 \
+    --model yolov8s.pt \
+    --epochs 100 --imgsz 640 --batch 16 \
+    --device 0
+```
+
+The report is written to `results/official/`:
+
+- `individual_results.csv`: one row per seed/run
+- `summary_mean_std.csv`: aggregated mean and standard deviation
+- `paper_table.csv`: compact report table
+- `plots/`: cross-domain charts with error bars
+
+`runs/*/results.csv` is source-domain validation history, not an OOD test
+result. Use only `results/official/` for ID/OOD claims in the report.
 
 ---
 

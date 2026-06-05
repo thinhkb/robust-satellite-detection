@@ -10,13 +10,57 @@ Usage:
 """
 
 import argparse
+import csv
 import sys
+from collections import defaultdict
 from pathlib import Path
 
 import yaml
 
+
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+
 ZONES  = ["CZ_A", "CZ_B", "CZ_C"]
 SPLITS = ["train", "val", "test"]
+
+
+def check_split_manifest(zone_dir: Path) -> bool:
+    """Verify that every original source image belongs to exactly one split."""
+    manifest = zone_dir / "split_manifest.csv"
+    if not manifest.exists():
+        print("    X  split_manifest.csv missing (legacy tile-level split)")
+        return False
+
+    source_splits = defaultdict(set)
+    tile_rows = 0
+    with open(manifest, newline="", encoding="utf-8") as handle:
+        for row in csv.DictReader(handle):
+            source_splits[row["source_image"]].add(row["split"])
+            tile_rows += 1
+
+    leaked = {
+        source: splits
+        for source, splits in source_splits.items()
+        if len(splits) != 1
+    }
+    split_sources = {
+        split: sum(split in splits for splits in source_splits.values())
+        for split in SPLITS
+    }
+    if leaked:
+        print(f"    X  spatial leakage in {len(leaked)} source images")
+        return False
+    if any(count == 0 for count in split_sources.values()):
+        print(f"    X  empty source-image split: {split_sources}")
+        return False
+
+    print(
+        "    OK split manifest: "
+        f"{len(source_splits)} source images, {tile_rows} tiles, no leakage"
+    )
+    return True
 
 
 def check_path(p: Path, label: str) -> bool:
@@ -93,10 +137,15 @@ def main(args):
                 print("  ← MISSING", end="")
             print()
 
+        if split_ok:
+            split_ok = check_split_manifest(zone_dir)
         zone_status[zone] = split_ok
         if not split_ok:
             all_ok = False
-            print(f"    → Run: python scripts/split_domain.py --data_dir {args.data_dir}")
+            print(
+                "    -> Rebuild grouped splits: "
+                f"python scripts/split_domain.py --data_dir {args.data_dir} --force"
+            )
 
     # ── 3. Check YAML configs ─────────────────────────────────────────────
     print(f"\n[3] YAML config files  ({cfg_dir})")

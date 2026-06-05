@@ -53,16 +53,16 @@ pip install rasterio
 
 ```bash
 python scripts/convert_to_yolo.py \
-    --xview_img_dir data_raw/train_images \
-    --geojson       data_raw/xView_train.geojson \
-    --koppen_raster data_raw/Beck_KG_V1_present_0p0083.tif \
+    --xview_img_dir data_raw/xview/train_images \
+    --geojson       data_raw/xview/xView_train.geojson \
+    --koppen_raster data_raw/koppen/Beck_KG_V1_present_0p0083.tif \
     --out_dir       data \
     --inspect
 ```
 
 Output mong đợi:
 ```
-Images found in data_raw/train_images: 847
+Images found in data_raw/xview/train_images: 847
 Total annotations : 601,937
 In target classes : 162,841
 ...
@@ -79,9 +79,9 @@ Zone distribution (sample of 200 images):
 
 ```bash
 python scripts/convert_to_yolo.py \
-    --xview_img_dir data_raw/train_images \
-    --geojson       data_raw/xView_train.geojson \
-    --koppen_raster data_raw/Beck_KG_V1_present_0p0083.tif \
+    --xview_img_dir data_raw/xview/train_images \
+    --geojson       data_raw/xview/xView_train.geojson \
+    --koppen_raster data_raw/koppen/Beck_KG_V1_present_0p0083.tif \
     --out_dir       data \
     --tile_size     512 \
     --overlap       0.2

@@ -41,6 +41,7 @@ Usage:
 """
 
 import argparse
+import sys
 import json
 import os
 import sys
@@ -48,6 +49,25 @@ from pathlib import Path
 from collections import defaultdict
 
 from tqdm import tqdm
+
+
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+
+
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+
+
+def resolve_cli_path(value: str) -> Path:
+    """Resolve CLI paths from cwd first, then from the repository root."""
+    path = Path(value).expanduser()
+    if path.is_absolute():
+        return path.resolve()
+    cwd_path = (Path.cwd() / path).resolve()
+    if cwd_path.exists():
+        return cwd_path
+    return (PROJECT_ROOT / path).resolve()
 
 # ──────────────────── check critical dependencies ───────────────────────────
 
@@ -488,23 +508,29 @@ def inspect(geojson_path: str, img_dir: str, koppen_path: str):
 # ──────────────────── main conversion ───────────────────────────────────────
 
 def main(args):
-    img_dir     = Path(args.xview_img_dir)
-    geojson_path = args.geojson
-    koppen_path  = args.koppen_raster
-    out_dir      = Path(args.out_dir)
+    img_dir = resolve_cli_path(args.xview_img_dir)
+    geojson_path = resolve_cli_path(args.geojson)
+    koppen_path = resolve_cli_path(args.koppen_raster)
+    out_dir = resolve_cli_path(args.out_dir)
 
     # ── Validate paths ────────────────────────────────────────────────
     errors = []
     if not img_dir.exists():
         errors.append(f"xview_img_dir not found: {img_dir}")
-    if not Path(geojson_path).exists():
+    if not geojson_path.exists():
         errors.append(f"geojson not found: {geojson_path}")
-    if not Path(koppen_path).exists():
+    if not koppen_path.exists():
         errors.append(f"koppen_raster not found: {koppen_path}")
     if errors:
         print("\n[ERROR] Missing files:")
         for e in errors:
             print(f"  {e}")
+        print(f"\n  Current directory : {Path.cwd()}")
+        print(f"  Repository root   : {PROJECT_ROOT}")
+        print("  Expected project paths:")
+        print(f"    {PROJECT_ROOT / 'data_raw/xview/train_images'}")
+        print(f"    {PROJECT_ROOT / 'data_raw/xview/xView_train.geojson'}")
+        print(f"    {PROJECT_ROOT / 'data_raw/koppen/Beck_KG_V1_present_0p0083.tif'}")
         raise SystemExit(1)
 
     print("=" * 65)
@@ -518,14 +544,14 @@ def main(args):
     print("=" * 65)
 
     if args.inspect:
-        inspect(geojson_path, str(img_dir), koppen_path)
+        inspect(str(geojson_path), str(img_dir), str(koppen_path))
         return
 
     # ── Parse annotations ─────────────────────────────────────────────
-    annotations = parse_geojson(geojson_path)
+    annotations = parse_geojson(str(geojson_path))
 
     # ── Open Köppen raster (keep open for whole run) ──────────────────
-    koppen_src = rasterio.open(koppen_path)
+    koppen_src = rasterio.open(str(koppen_path))
     print(f"  Köppen raster opened: {koppen_src.width}×{koppen_src.height}")
 
     # ── Per-image stats ───────────────────────────────────────────────
