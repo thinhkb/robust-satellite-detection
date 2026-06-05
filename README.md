@@ -173,6 +173,11 @@ python scripts/train_baseline.py \
 python scripts/train_dg_aug.py \
     --cfg configs/multi_source_test_cz_c.yaml \
     --run_name dgaug_CZC --epochs 80
+
+# Exp 4: ACS-YOLO, test on CZ_C
+python scripts/train_acs_yolo.py \
+    --cfg configs/multi_source_test_cz_c.yaml \
+    --run_name acsyolo_CZC --epochs 80 --warmup_epochs 10
 ```
 
 ### Evaluate cross-domain
@@ -261,6 +266,47 @@ DG-Aug adds augmentations that **simulate visual variations across climate zones
 
 ---
 
+## ACS-YOLO: Adaptive Correspondence Scoring
+
+ACS-YOLO adapts the idea from *Adaptive Correspondence Scoring for
+Unsupervised Medical Image Registration* to supervised satellite detection.
+Instead of trusting every training image equally, it estimates an image-level
+reliability score from prediction consistency under style-only domain
+perturbations.
+
+Pipeline:
+
+1. Warm up YOLO for `--warmup_epochs`.
+2. Generate a climate-style augmented copy of each train image without moving
+   boxes.
+3. Compare predictions on original vs augmented images, with GT alignment as an
+   additional residual signal.
+4. Save `acs_scores.json` / `acs_scores.csv`.
+5. Continue training with a custom ACS-weighted YOLO loss.
+
+ACS is used only during training, so inference speed and model size stay the
+same as the selected YOLO checkpoint.
+
+Run a single ACS-YOLO experiment:
+
+```bash
+python scripts/train_acs_yolo.py \
+    --cfg configs/multi_source_test_cz_c.yaml \
+    --run_name exp4_acsyolo_test_CZC \
+    --model yolov8s.pt \
+    --epochs 80 \
+    --warmup_epochs 10 \
+    --device 0
+```
+
+Run ACS-YOLO through the full experiment runner:
+
+```bash
+python scripts/run_experiments.py --exp 4 --epochs 80 --acs_warmup_epochs 10
+```
+
+---
+
 ## Report Table Template
 
 ```
@@ -269,10 +315,13 @@ Method         | Train Domain | ID mAP50 | OOD mAP50 | PD (%)↓ | H ↑
 Baseline       | CZ_A         |   0.xx   |    0.xx   |   xx%   | 0.xx
 Baseline       | CZ_A+CZ_B    |   0.xx   |    0.xx   |   xx%   | 0.xx
 DG-Aug (ours)  | CZ_A+CZ_B    |   0.xx   |    0.xx   |   xx%   | 0.xx
+ACS-YOLO       | CZ_A+CZ_B    |   0.xx   |    0.xx   |   xx%   | 0.xx
 Baseline       | CZ_A+CZ_C    |   0.xx   |    0.xx   |   xx%   | 0.xx
 DG-Aug (ours)  | CZ_A+CZ_C    |   0.xx   |    0.xx   |   xx%   | 0.xx
+ACS-YOLO       | CZ_A+CZ_C    |   0.xx   |    0.xx   |   xx%   | 0.xx
 Baseline       | CZ_B+CZ_C    |   0.xx   |    0.xx   |   xx%   | 0.xx
 DG-Aug (ours)  | CZ_B+CZ_C    |   0.xx   |    0.xx   |   xx%   | 0.xx
+ACS-YOLO       | CZ_B+CZ_C    |   0.xx   |    0.xx   |   xx%   | 0.xx
 ```
 
 ---

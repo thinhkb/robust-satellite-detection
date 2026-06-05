@@ -1,11 +1,13 @@
 """
 run_experiments.py
 ==================
-Master script that runs ALL 3 experiment groups from the project plan:
+Master script that runs the experiment groups from the project plan:
 
   Exp 1 – Single-source baseline (train on 1 zone, test on all 3)
   Exp 2 – Multi-source baseline  (train on 2 zones, test on 1)
   Exp 3 – DG-Aug proposed method (train on 2 zones + aug, test on 1)
+
+  Exp 4 - ACS-YOLO (DG-Aug + adaptive correspondence scoring)
 
 Then generates:
   - results/tables/summary_table.csv   (paper-style result table)
@@ -60,6 +62,12 @@ EXP3_RUNS = [
     (["CZ_B", "CZ_C"], "CZ_A", "exp3_dgaug_test_CZA"),
 ]
 
+EXP4_RUNS = [
+    (["CZ_A", "CZ_B"], "CZ_C", "exp4_acsyolo_test_CZC"),
+    (["CZ_A", "CZ_C"], "CZ_B", "exp4_acsyolo_test_CZB"),
+    (["CZ_B", "CZ_C"], "CZ_A", "exp4_acsyolo_test_CZA"),
+]
+
 
 def get_yaml_for(src_zones: list, test_zone: str, cfg_dir: Path) -> Path:
     """Locate the YAML written by split_domain.py."""
@@ -83,6 +91,7 @@ def train_and_eval(src_zones: list,
                    test_zone: str,
                    run_name: str,
                    use_dg_aug: bool,
+                   use_acs: bool,
                    args,
                    cfg_dir: Path) -> dict | None:
     """Train one model, evaluate cross-domain, return summary dict."""
@@ -98,22 +107,40 @@ def train_and_eval(src_zones: list,
     if weights_path.exists() and not args.force_retrain:
         print(f"[SKIP training] {run_name} – weights already exist")
     else:
-        train_script = (
-            "scripts/train_dg_aug.py" if use_dg_aug
-            else "scripts/train_baseline.py"
-        )
-        run_cmd(
-            [sys.executable, train_script,
-             "--cfg",      str(yaml_path),
-             "--run_name", run_name,
-             "--model",    args.model,
-             "--imgsz",    str(args.imgsz),
-             "--epochs",   str(args.epochs),
-             "--batch",    str(args.batch),
-             "--device",   args.device,
-             "--project",  args.run_dir],
-            desc=f"Training {run_name}"
-        )
+        if use_acs:
+            train_cmd = [
+                sys.executable, "scripts/train_acs_yolo.py",
+                "--cfg",           str(yaml_path),
+                "--run_name",      run_name,
+                "--model",         args.model,
+                "--imgsz",         str(args.imgsz),
+                "--epochs",        str(args.epochs),
+                "--warmup_epochs", str(args.acs_warmup_epochs),
+                "--batch",         str(args.batch),
+                "--score_batch",   str(args.acs_score_batch),
+                "--device",        args.device,
+                "--project",       args.run_dir,
+            ]
+            if args.force_retrain:
+                train_cmd.append("--force_retrain")
+                train_cmd.append("--force_rescore")
+        else:
+            train_script = (
+                "scripts/train_dg_aug.py" if use_dg_aug
+                else "scripts/train_baseline.py"
+            )
+            train_cmd = [
+                sys.executable, train_script,
+                "--cfg",      str(yaml_path),
+                "--run_name", run_name,
+                "--model",    args.model,
+                "--imgsz",    str(args.imgsz),
+                "--epochs",   str(args.epochs),
+                "--batch",    str(args.batch),
+                "--device",   args.device,
+                "--project",  args.run_dir,
+            ]
+        run_cmd(train_cmd, desc=f"Training {run_name}")
         
         # Verify weights exist after training
         if not weights_path.exists():
@@ -208,10 +235,11 @@ def plot_results(df: pd.DataFrame, out_dir: Path):
 
     # ── 1. ID vs OOD mAP50 scatter plot ──────────────────────────────────
     fig, ax = plt.subplots(figsize=(8, 6))
-    colors = {"exp1": "#e74c3c", "exp2": "#3498db", "exp3": "#2ecc71"}
+    colors = {"exp1": "#e74c3c", "exp2": "#3498db", "exp3": "#2ecc71", "exp4": "#8e44ad"}
     labels = {"exp1": "Single-source Baseline",
               "exp2": "Multi-source Baseline",
-              "exp3": "DG-Aug (Proposed)"}
+              "exp3": "DG-Aug (Proposed)",
+              "exp4": "ACS-YOLO"}
     for prefix, color in colors.items():
         sub = df[df["Method"].str.startswith(prefix)]
         if sub.empty:
@@ -245,6 +273,7 @@ def plot_results(df: pd.DataFrame, out_dir: Path):
         "exp1": "Single-src\nBaseline",
         "exp2": "Multi-src\nBaseline",
         "exp3": "DG-Aug\n(Proposed)",
+        "exp4": "ACS-YOLO",
     }
     pd_avgs = {}
     for prefix, label in methods_map.items():
@@ -253,7 +282,7 @@ def plot_results(df: pd.DataFrame, out_dir: Path):
 
     fig, ax = plt.subplots(figsize=(7, 5))
     bars = ax.bar(pd_avgs.keys(), pd_avgs.values(),
-                  color=["#e74c3c", "#3498db", "#2ecc71"],
+                  color=[colors[prefix] for prefix in methods_map],
                   edgecolor="black", linewidth=0.8)
     for bar, val in zip(bars, pd_avgs.values()):
         ax.text(bar.get_x() + bar.get_width() / 2,
@@ -272,17 +301,18 @@ def plot_results(df: pd.DataFrame, out_dir: Path):
     # ── 3. Per-zone mAP50 grouped bar ────────────────────────────────────
     fig, ax = plt.subplots(figsize=(10, 6))
     x = np.arange(len(ZONES))
-    width = 0.25
+    width = min(0.8 / max(len(methods_map), 1), 0.25)
+    center = (len(methods_map) - 1) / 2
     for i, (prefix, label) in enumerate(methods_map.items()):
         sub = df[df["Method"].str.startswith(prefix)]
         vals = []
         for zone in ZONES:
             col = f"mAP50_{zone}"
             vals.append(sub[col].mean() if col in sub and not sub.empty else 0)
-        offset = (i - 1) * width
+        offset = (i - center) * width
         rects = ax.bar(x + offset, vals, width,
                        label=label,
-                       color=list(colors.values())[i],
+                       color=colors[prefix],
                        edgecolor="black", linewidth=0.6)
     ax.set_xticks(x)
     ax.set_xticklabels(ZONES, fontsize=12)
@@ -313,11 +343,15 @@ def main():
     parser.add_argument("--batch",        type=int, default=16)
     parser.add_argument("--device",       default="")
     parser.add_argument("--exp",          nargs="+",
-                        choices=["1", "2", "3"],
-                        default=["1", "2", "3"],
+                        choices=["1", "2", "3", "4"],
+                        default=["1", "2", "3", "4"],
                         help="Which experiments to run (default: all)")
     parser.add_argument("--force_retrain", action="store_true",
                         help="Re-train even if weights exist")
+    parser.add_argument("--acs_warmup_epochs", type=int, default=10,
+                        help="Warm-up epochs inside Exp 4 ACS-YOLO")
+    parser.add_argument("--acs_score_batch", type=int, default=8,
+                        help="Batch size used for ACS score generation")
     args = parser.parse_args()
 
     cfg_dir = Path(args.cfg_dir)
@@ -333,7 +367,7 @@ def main():
         for src_zones, test_zone, run_name in EXP1_RUNS:
             res = train_and_eval(
                 src_zones, test_zone, run_name,
-                use_dg_aug=False, args=args, cfg_dir=cfg_dir)
+                use_dg_aug=False, use_acs=False, args=args, cfg_dir=cfg_dir)
             all_results.append(res)
 
     # ── Experiment 2: Multi-source baseline ───────────────────────────────
@@ -342,7 +376,7 @@ def main():
         for src_zones, test_zone, run_name in EXP2_RUNS:
             res = train_and_eval(
                 src_zones, test_zone, run_name,
-                use_dg_aug=False, args=args, cfg_dir=cfg_dir)
+                use_dg_aug=False, use_acs=False, args=args, cfg_dir=cfg_dir)
             all_results.append(res)
 
     # ── Experiment 3: Proposed DG-Aug method ─────────────────────────────
@@ -351,7 +385,16 @@ def main():
         for src_zones, test_zone, run_name in EXP3_RUNS:
             res = train_and_eval(
                 src_zones, test_zone, run_name,
-                use_dg_aug=True, args=args, cfg_dir=cfg_dir)
+                use_dg_aug=True, use_acs=False, args=args, cfg_dir=cfg_dir)
+            all_results.append(res)
+
+    # -- Experiment 4: ACS-YOLO ------------------------------------------
+    if "4" in args.exp:
+        print("\n> EXPERIMENT 4: ACS-YOLO (DG-Aug + Adaptive Correspondence Scoring)")
+        for src_zones, test_zone, run_name in EXP4_RUNS:
+            res = train_and_eval(
+                src_zones, test_zone, run_name,
+                use_dg_aug=True, use_acs=True, args=args, cfg_dir=cfg_dir)
             all_results.append(res)
 
     # ── Build summary table ───────────────────────────────────────────────
