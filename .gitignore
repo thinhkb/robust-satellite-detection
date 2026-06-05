@@ -34,8 +34,6 @@ ENV/
 # Project Specific
 data/
 data_raw/
-results/
-runs/
 {data/
 *.pt
 *.onnx
