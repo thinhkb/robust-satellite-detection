@@ -95,9 +95,9 @@ pip install tqdm pyyaml
 # Register at: http://xviewdataset.org/
 # Download: train_images.tgz  +  xView_train.geojson
 # Unpack to:
-mkdir -p data_raw/xview
-# → data_raw/xview/train_images/   (*.tif files)
-# → data_raw/xview/xView_train.geojson
+mkdir -p /data/xview
+# → /data_raw/xview/train_images/   (*.tif files)
+# → /data_raw/xview/xView_train.geojson
 ```
 
 **Köppen-Geiger Climate Raster** (Beck et al. 2018):
@@ -105,25 +105,21 @@ mkdir -p data_raw/xview
 # Download from Figshare:
 # https://figshare.com/articles/dataset/6396959
 # File: Beck_KG_V1_present_0p0083.tif
-mkdir -p data_raw/koppen
-# → data_raw/koppen/Beck_KG_V1_present_0p0083.tif
+mkdir -p /data/koppen
+# → /data/koppen/Beck_KG_V1_present_0p0083.tif
 ```
 
 ---
 
 ## Quick Start
 
-> **Official results require leakage-safe splits.** Older versions randomly
-> assigned overlapping tiles to train/val/test. Rebuild all splits before
-> retraining and do not mix legacy metrics with the official report.
-
 ### Step 1: Convert xView to YOLO format
 
 ```bash
 python scripts/convert_to_yolo.py \
-    --xview_img_dir data_raw/xview/train_images \
-    --geojson       data_raw/xview/xView_train.geojson \
-    --koppen_raster data_raw/koppen/Beck_KG_V1_present_0p0083.tif \
+    --xview_img_dir /data/xview/train_images \
+    --geojson       /data/xView_train.geojson \
+    --koppen_raster /data/koppen/Beck_KG_V1_present_0p0083.tif \
     --out_dir       data \
     --tile_size     512 \
     --overlap       0.2
@@ -135,10 +131,7 @@ python scripts/convert_to_yolo.py \
 python scripts/split_domain.py \
     --data_dir data \
     --cfg_dir  configs \
-    --min_samples 30 \
-    --force
-
-python scripts/check_data.py --data_dir data --cfg_dir configs
+    --min_samples 30
 ```
 
 ### Step 3: Run all experiments (recommended)
@@ -158,27 +151,6 @@ python scripts/run_experiments.py \
     --epochs 50 --imgsz 512 --batch 8 \
     --device cpu
 ```
-
-### Official multi-seed report
-
-```bash
-python scripts/run_experiments.py \
-    --exp 1 2 3 4 \
-    --seeds 42 43 44 \
-    --model yolov8s.pt \
-    --epochs 100 --imgsz 640 --batch 16 \
-    --device 0
-```
-
-The report is written to `results/official/`:
-
-- `individual_results.csv`: one row per seed/run
-- `summary_mean_std.csv`: aggregated mean and standard deviation
-- `paper_table.csv`: compact report table
-- `plots/`: cross-domain charts with error bars
-
-`runs/*/results.csv` is source-domain validation history, not an OOD test
-result. Use only `results/official/` for ID/OOD claims in the report.
 
 ---
 
@@ -201,6 +173,11 @@ python scripts/train_baseline.py \
 python scripts/train_dg_aug.py \
     --cfg configs/multi_source_test_cz_c.yaml \
     --run_name dgaug_CZC --epochs 80
+
+# Exp 4: ACS-YOLO, test on CZ_C
+python scripts/train_acs_yolo.py \
+    --cfg configs/multi_source_test_cz_c.yaml \
+    --run_name acsyolo_CZC --epochs 80 --warmup_epochs 10
 ```
 
 ### Evaluate cross-domain
@@ -289,6 +266,47 @@ DG-Aug adds augmentations that **simulate visual variations across climate zones
 
 ---
 
+## ACS-YOLO: Adaptive Correspondence Scoring
+
+ACS-YOLO adapts the idea from *Adaptive Correspondence Scoring for
+Unsupervised Medical Image Registration* to supervised satellite detection.
+Instead of trusting every training image equally, it estimates an image-level
+reliability score from prediction consistency under style-only domain
+perturbations.
+
+Pipeline:
+
+1. Warm up YOLO for `--warmup_epochs`.
+2. Generate a climate-style augmented copy of each train image without moving
+   boxes.
+3. Compare predictions on original vs augmented images, with GT alignment as an
+   additional residual signal.
+4. Save `acs_scores.json` / `acs_scores.csv`.
+5. Continue training with a custom ACS-weighted YOLO loss.
+
+ACS is used only during training, so inference speed and model size stay the
+same as the selected YOLO checkpoint.
+
+Run a single ACS-YOLO experiment:
+
+```bash
+python scripts/train_acs_yolo.py \
+    --cfg configs/multi_source_test_cz_c.yaml \
+    --run_name exp4_acsyolo_test_CZC \
+    --model yolov8s.pt \
+    --epochs 80 \
+    --warmup_epochs 10 \
+    --device 0
+```
+
+Run ACS-YOLO through the full experiment runner:
+
+```bash
+python scripts/run_experiments.py --exp 4 --epochs 80 --acs_warmup_epochs 10
+```
+
+---
+
 ## Report Table Template
 
 ```
@@ -297,10 +315,13 @@ Method         | Train Domain | ID mAP50 | OOD mAP50 | PD (%)↓ | H ↑
 Baseline       | CZ_A         |   0.xx   |    0.xx   |   xx%   | 0.xx
 Baseline       | CZ_A+CZ_B    |   0.xx   |    0.xx   |   xx%   | 0.xx
 DG-Aug (ours)  | CZ_A+CZ_B    |   0.xx   |    0.xx   |   xx%   | 0.xx
+ACS-YOLO       | CZ_A+CZ_B    |   0.xx   |    0.xx   |   xx%   | 0.xx
 Baseline       | CZ_A+CZ_C    |   0.xx   |    0.xx   |   xx%   | 0.xx
 DG-Aug (ours)  | CZ_A+CZ_C    |   0.xx   |    0.xx   |   xx%   | 0.xx
+ACS-YOLO       | CZ_A+CZ_C    |   0.xx   |    0.xx   |   xx%   | 0.xx
 Baseline       | CZ_B+CZ_C    |   0.xx   |    0.xx   |   xx%   | 0.xx
 DG-Aug (ours)  | CZ_B+CZ_C    |   0.xx   |    0.xx   |   xx%   | 0.xx
+ACS-YOLO       | CZ_B+CZ_C    |   0.xx   |    0.xx   |   xx%   | 0.xx
 ```
 
 ---

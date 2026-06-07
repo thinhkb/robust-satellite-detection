@@ -1,0 +1,88 @@
+{
+  "run_name": "exp4_acsyolo_test_CZA_seed42",
+  "base_run": "exp4_acsyolo_test_CZA",
+  "method": "ACS-YOLO",
+  "seed": 42,
+  "dataset_manifests": {
+    "CZ_A": "7a0cf20d86f9d86f435cf531866e78a445b3581619429fd2551485c45e4e0c5f",
+    "CZ_B": "0064d2922f89277762500b224b4f29e19789de4cf1fb5db76330a5c6a0aa0d81",
+    "CZ_C": "e1771ccf68be88d52d2a7027b22fa642e275817dee6781fc1f328435e27496f5"
+  },
+  "environment": {
+    "python": "3.12.3",
+    "platform": "Linux-6.6.87.2-microsoft-standard-WSL2-x86_64-with-glibc2.39",
+    "torch": "2.12.0+cu130",
+    "ultralytics": "8.4.60"
+  },
+  "weights": "/home/duc/robust-satellite-detection2/runs/exp4_acsyolo_test_CZA_seed42/weights/best.pt",
+  "id_zones": [
+    "CZ_B",
+    "CZ_C"
+  ],
+  "ood_zones": [
+    "CZ_A"
+  ],
+  "per_zone": {
+    "CZ_A": {
+      "mAP50": 0.27441750584455366,
+      "mAP50_95": 0.11761081890764738,
+      "Precision": 0.3603912008480754,
+      "Recall": 0.3708618437622841,
+      "per_class_mAP50_95": {
+        "Building": 0.25388644647708053,
+        "Small Car": 0.23306807407292487,
+        "Truck": 0.1553869321320544,
+        "Bus": 0.11163638170372643,
+        "Cargo Truck": 0.02827199318789871,
+        "Shipping Container": 0.08950972140400033,
+        "Vehicle Lot": 0.023748613003048456,
+        "Shed": 0.0453783892804452
+      },
+      "zone": "CZ_A"
+    },
+    "CZ_B": {
+      "mAP50": 0.3694274749048726,
+      "mAP50_95": 0.16526708103642335,
+      "Precision": 0.41831991592268075,
+      "Recall": 0.4206756378142962,
+      "per_class_mAP50_95": {
+        "Building": 0.385232773258306,
+        "Small Car": 0.2888298816770193,
+        "Truck": 0.14734666278988745,
+        "Bus": 0.18984383287167733,
+        "Cargo Truck": 0.06726492967423287,
+        "Shipping Container": 0.0886670780236193,
+        "Vehicle Lot": 0.02526605621652875,
+        "Shed": 0.12968543378011582
+      },
+      "zone": "CZ_B"
+    },
+    "CZ_C": {
+      "mAP50": 0.26275153516299266,
+      "mAP50_95": 0.10607546971912066,
+      "Precision": 0.26545581597942886,
+      "Recall": 0.3736386069558788,
+      "per_class_mAP50_95": {
+        "Building": 0.3224864215509599,
+        "Small Car": 0.22905293534278232,
+        "Truck": 0.07982795791456364,
+        "Bus": 0.07494651453573062,
+        "Cargo Truck": 0.06471441014742144,
+        "Shipping Container": 0.011295539570768905,
+        "Vehicle Lot": 0.041763180116552244,
+        "Shed": 0.024516798574185893
+      },
+      "zone": "CZ_C"
+    }
+  },
+  "aggregate": {
+    "mAP50_ID": 0.3160895050339326,
+    "mAP50_OOD": 0.27441750584455366,
+    "mAP5095_ID": 0.13567127537777202,
+    "mAP5095_OOD": 0.11761081890764738,
+    "PD_50": 13.18360734087183,
+    "PD_5095": 13.311923559232355,
+    "H_50": 0.29378311179069344,
+    "H_5095": 0.12599714041722737
+  }
+}

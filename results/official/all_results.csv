@@ -1,0 +1,13 @@
+run_name,base_run,method,seed,id_zones,ood_zones,mAP50_ID,mAP50_OOD,mAP5095_ID,mAP5095_OOD,PD_50,PD_5095,H_50,H_5095,mAP50_CZ_A,mAP50_CZ_B,mAP50_CZ_C
+exp1_baseline_CZA_seed42,exp1_baseline_CZA,Single-source,42,CZ_A,CZ_B+CZ_C,0.2382,0.2055,0.1025,0.0825,13.72,19.51,0.2206,0.0914,0.2382,0.2232,0.1878
+exp1_baseline_CZB_seed42,exp1_baseline_CZB,Single-source,42,CZ_B,CZ_A+CZ_C,0.3499,0.2254,0.1599,0.0916,35.58,42.69,0.2742,0.1165,0.2331,0.3499,0.2177
+exp1_baseline_CZC_seed42,exp1_baseline_CZC,Single-source,42,CZ_C,CZ_A+CZ_B,0.1985,0.1717,0.0792,0.0656,13.54,17.23,0.1841,0.0718,0.1591,0.1843,0.1985
+exp2_multisrc_test_CZA_seed42,exp2_multisrc_test_CZA,Multi-source,42,CZ_B+CZ_C,CZ_A,0.313,0.2494,0.1367,0.1065,20.33,22.05,0.2776,0.1197,0.2494,0.3614,0.2647
+exp2_multisrc_test_CZB_seed42,exp2_multisrc_test_CZB,Multi-source,42,CZ_A+CZ_C,CZ_B,0.2772,0.279,0.1191,0.1182,-0.68,0.7,0.2781,0.1186,0.3031,0.279,0.2512
+exp2_multisrc_test_CZC_seed42,exp2_multisrc_test_CZC,Multi-source,42,CZ_A+CZ_B,CZ_C,0.3527,0.256,0.1621,0.1013,27.42,37.53,0.2967,0.1247,0.3285,0.377,0.256
+exp3_dgaug_test_CZA_seed42,exp3_dgaug_test_CZA,DG-Aug,42,CZ_B+CZ_C,CZ_A,0.315,0.2869,0.1358,0.1246,8.91,8.29,0.3003,0.13,0.2869,0.3635,0.2665
+exp3_dgaug_test_CZB_seed42,exp3_dgaug_test_CZB,DG-Aug,42,CZ_A+CZ_C,CZ_B,0.2894,0.2928,0.123,0.1213,-1.16,1.42,0.2911,0.1222,0.3211,0.2928,0.2577
+exp3_dgaug_test_CZC_seed42,exp3_dgaug_test_CZC,DG-Aug,42,CZ_A+CZ_B,CZ_C,0.3283,0.2453,0.1462,0.0969,25.28,33.75,0.2808,0.1166,0.3154,0.3411,0.2453
+exp4_acsyolo_test_CZA_seed42,exp4_acsyolo_test_CZA,ACS-YOLO,42,CZ_B+CZ_C,CZ_A,0.3161,0.2744,0.1357,0.1176,13.18,13.31,0.2938,0.126,0.2744,0.3694,0.2628
+exp4_acsyolo_test_CZB_seed42,exp4_acsyolo_test_CZB,ACS-YOLO,42,CZ_A+CZ_C,CZ_B,0.2793,0.2894,0.1187,0.1202,-3.62,-1.23,0.2843,0.1194,0.3095,0.2894,0.2491
+exp4_acsyolo_test_CZC_seed42,exp4_acsyolo_test_CZC,ACS-YOLO,42,CZ_A+CZ_B,CZ_C,0.3465,0.2569,0.1566,0.1022,25.87,34.74,0.295,0.1237,0.3331,0.3599,0.2569
