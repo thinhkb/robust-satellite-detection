@@ -44,20 +44,38 @@ def load_results(input_dir: Path) -> pd.DataFrame:
 
 
 def save_ood_chart(frame: pd.DataFrame, output: Path) -> None:
+    # Extract individual target zone OOD results for all runs
+    rows = []
+    for _, row in frame.iterrows():
+        method = row['method']
+        seed = row['seed']
+        ood_domains = str(row['ood_domains']).split('+')
+        for zone in ood_domains:
+            col_name = f"{zone}_mAP50_95"
+            if col_name in frame.columns:
+                rows.append({
+                    'method': method,
+                    'target_zone': zone,
+                    'mAP': float(row[col_name]),
+                    'seed': seed
+                })
+    df_ood = pd.DataFrame(rows)
+    
     grouped = (
-        frame.groupby(["method", "ood_domains"])["OOD_mAP50_95"]
+        df_ood.groupby(["method", "target_zone"])["mAP"]
         .agg(["mean", "std"])
         .fillna(0.0)
         .reset_index()
     )
-    zones = sorted(grouped["ood_domains"].unique())
+    
+    zones = ["CZ_A", "CZ_B", "CZ_C"]
     methods = [method for method in METHOD_COLORS if method in set(grouped["method"])]
     x = np.arange(len(zones))
     width = 0.8 / max(len(methods), 1)
 
-    fig, ax = plt.subplots(figsize=(11, 6))
+    fig, ax = plt.subplots(figsize=(10, 6))
     for index, method in enumerate(methods):
-        subset = grouped[grouped["method"] == method].set_index("ood_domains")
+        subset = grouped[grouped["method"] == method].set_index("target_zone")
         means = np.array(
             [subset.loc[zone, "mean"] if zone in subset.index else np.nan for zone in zones]
         )
@@ -74,20 +92,27 @@ def save_ood_chart(frame: pd.DataFrame, output: Path) -> None:
             label=method,
             color=METHOD_COLORS[method],
         )
-        for bar, value in zip(bars, means):
+        for bar, value, std in zip(bars, means, stds):
             if np.isnan(value):
                 bar.set_alpha(0)
             else:
+                y_pos = value + std + 0.002
                 ax.text(
                     bar.get_x() + bar.get_width() / 2,
-                    value + 0.003,
+                    y_pos,
                     f"{value:.3f}",
                     ha="center",
                     fontsize=8,
                 )
 
+    max_y = (grouped["mean"] + grouped["std"]).max()
+    if pd.isna(max_y):
+        max_y = 0.15
+    ax.set_ylim(0, max(max_y * 1.15, 0.15))
+
     ax.set_xticks(x)
     ax.set_xticklabels(zones)
+    ax.set_xlabel("OOD Target Zone")
     ax.set_ylabel("OOD test mAP50-95")
     ax.set_title("Cross-Domain Generalization (mean +/- std across seeds)")
     ax.grid(axis="y", alpha=0.25)

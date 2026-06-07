@@ -272,6 +272,7 @@ def save_legend(out_path: Path):
 # ──────────────────────────── main ──────────────────────────────────────────
 
 def main():
+    random.seed(42)
     parser = argparse.ArgumentParser()
     parser.add_argument("--mode", choices=["single", "grid"],
                         default="single")

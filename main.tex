@@ -232,11 +232,9 @@ where $b_i \in \mathbb{R}^4$ denotes the predicted bounding box coordinates, $c_
 
 The YOLOv8n variant contains approximately 3.2 million parameters and requires 8.7 GFLORs per forward pass at $640\times640$ resolution, making it well-suited for large-scale satellite imagery experiments where both accuracy and throughput are important.
 
-\note{Chèn sơ đồ kiến trúc YOLOv8 ở đây (backbone CSPDarknet $\to$ PAN neck $\to$ Detect head). Có thể vẽ bằng draw.io hoặc dùng hình từ tài liệu Ultralytics.}
-
 \begin{figure}[H]
 \centering
-% \includegraphics[width=0.92\linewidth]{figures/yolov8_architecture.png}
+\includegraphics[width=0.92\linewidth]{figures/yolov8_architecture.png}
 \caption{Architecture of the YOLOv8n detector. The CSPDarknet53 backbone extracts multi-scale feature maps at strides 8, 16, and 32. The PAN neck fuses these features through top-down and bottom-up pathways. The decoupled head independently predicts classification and regression outputs at each scale.}
 \label{fig:model_architecture}
 \end{figure}
@@ -638,7 +636,12 @@ The qualitative analysis reveals that single-source models tend to produce abund
 
 \subsection{Error Analysis}
 
-\note{Chèn confusion matrix hoặc ảnh failure cases ở đây. Có thể lấy confusion matrix từ thư mục runs/exp*/confusion\_matrix.png.}
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.75\linewidth]{results/confusion_matrices/acsyolo_on_CZB/confusion_matrix_normalized.png}
+\caption{Normalized confusion matrix of the ACS-YOLO model evaluated on the CZ\_B (temperate zone) OOD test set. Small objects (Shed, Cargo Truck) and Vehicle Lot suffer from high background confusion (FN rate of 49\%, 53\%, and 91\% respectively), while Shipping Containers show moderate confusion with Buildings (3\%).}
+\label{fig:confusion_matrix}
+\end{figure}
 
 Failure cases predominantly occur in three scenarios. First, small objects such as Cargo Truck and Shed are frequently missed across all methods because their pixel footprint at $640\times640$ resolution is often below the detection threshold. Second, the Vehicle Lot class suffers from high intra-class variability---parking areas in temperate zones appear visually distinct from those in arid regions, making cross-domain recognition inherently difficult. Third, Shipping Container detections are occasionally confused with Building edges or rooftop segments, particularly in high-density urban areas within CZ\_B.
 
@@ -680,12 +683,10 @@ CZ\_C* & 28.78 & 19.21 &  6.94 &  7.28 & 6.44 & 2.85 & 3.36 & 2.64 \\
 
 Building and Small Car consistently achieve the highest mAP@50-95 across all zones, exceeding 19\% even in OOD settings. These classes benefit from large sample sizes and relatively stable visual appearance across climate zones. In contrast, Vehicle Lot, Shed, and Cargo Truck remain below 7\% in most OOD configurations, suggesting that their cross-domain appearance variability exceeds what current augmentation strategies can bridge.
 
-\note{Chèn biểu đồ visualization từ \texttt{scripts/visualize\_official\_results.py} ở đây (ood\_map\_by\_zone.png, id\_ood\_tradeoff.png). Chạy lệnh: \texttt{python scripts/visualize\_official\_results.py}}
-
 \begin{figure}[H]
 \centering
-% \includegraphics[width=0.48\linewidth]{results/official/plots/ood_map_by_zone.png}
-% \includegraphics[width=0.48\linewidth]{results/official/plots/id_ood_tradeoff.png}
+\includegraphics[width=0.48\linewidth]{results/official/plots/ood_map_by_zone.png}
+\includegraphics[width=0.48\linewidth]{results/official/plots/id_ood_tradeoff.png}
 \caption{Left: OOD mAP@50-95 by zone and method. Right: ID--OOD trade-off scatter plot showing that DG-Aug and ACS-YOLO achieve better OOD performance without significantly sacrificing ID accuracy.}
 \label{fig:official_plots}
 \end{figure}
