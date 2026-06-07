@@ -113,6 +113,19 @@ mkdir -p /data/koppen
 
 ## Quick Start
 
+### Streamlit video demo
+
+Upload a satellite video, select one of the trained checkpoints in `runs/`,
+and download the annotated result:
+
+```bash
+streamlit run streamlit_app.py
+```
+
+The app automatically discovers checkpoints matching
+`runs/**/weights/best.pt`. Confidence, IoU, inference size, and CPU/GPU can be
+configured from the sidebar.
+
 ### Step 1: Convert xView to YOLO format
 
 ```bash

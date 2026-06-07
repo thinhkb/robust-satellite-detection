@@ -26,6 +26,9 @@ scipy>=1.10.0               # Optional: statistical tests
 # ─── Utilities ───────────────────────────────────────────────────────────────
 pyyaml>=6.0
 tqdm>=4.65.0
+streamlit>=1.40.0           # Video inference web interface
+imageio-ffmpeg>=0.6.0       # Browser-compatible H.264 output
+ipykernel>=6.29.0           # Run the demo notebook in VS Code/Jupyter
 
 # ─── Optional: SAHI for sliced inference ─────────────────────────────────────
 sahi>=0.11.14
